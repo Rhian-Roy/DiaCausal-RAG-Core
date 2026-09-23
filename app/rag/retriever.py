@@ -6,9 +6,18 @@ retrieval strategies into a single candidate set.
 
 from __future__ import annotations
 
+import os
 import time
 from pathlib import Path
 from typing import Any
+
+# Ensure single-threaded CPU execution to prevent OpenMP/tqdm worker segfaults on macOS
+os.environ["TOKENIZERS_PARALLELISM"] = "false"
+try:
+    import torch
+    torch.set_num_threads(1)
+except ImportError:
+    pass
 
 import chromadb
 import numpy as np
@@ -110,25 +119,26 @@ def build_index(chunks: list[MedicalChunk] | None = None, force_rebuild: bool = 
         metadata={"hnsw:space": "cosine"},
     )
 
-    # Upsert in batches of 100
-    batch_size = 100
-    for i in range(0, len(texts), batch_size):
-        batch_ids = ids[i : i + batch_size]
-        batch_texts = texts[i : i + batch_size]
-        batch_metas = [
-            {
-                "doc_title": chunks[j].doc_title,
-                "section_path": chunks[j].section_path,
-                "page_number": chunks[j].page_number,
-                "authority_tier": chunks[j].authority_tier,
-            }
-            for j in range(i, min(i + batch_size, len(texts)))
-        ]
-        _CHROMA_COLLECTION.upsert(
-            ids=batch_ids,
-            documents=batch_texts,
-            metadatas=batch_metas,
-        )
+    # Only upsert if collection is empty or rebuilding
+    if force_rebuild or _CHROMA_COLLECTION.count() == 0:
+        batch_size = 100
+        for i in range(0, len(texts), batch_size):
+            batch_ids = ids[i : i + batch_size]
+            batch_texts = texts[i : i + batch_size]
+            batch_metas = [
+                {
+                    "doc_title": chunks[j].doc_title,
+                    "section_path": chunks[j].section_path,
+                    "page_number": chunks[j].page_number,
+                    "authority_tier": chunks[j].authority_tier,
+                }
+                for j in range(i, min(i + batch_size, len(texts)))
+            ]
+            _CHROMA_COLLECTION.upsert(
+                ids=batch_ids,
+                documents=batch_texts,
+                metadatas=batch_metas,
+            )
 
     # --- BM25s Sparse Index ---
     import bm25s

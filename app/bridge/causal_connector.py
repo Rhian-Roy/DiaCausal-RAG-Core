@@ -113,9 +113,12 @@ def _run_dml_fallback(
 
         Y, T, X, _ = _generate_synthetic_trial_data(patient, drug_name)
 
+        from sklearn.linear_model import Lasso, LogisticRegression
+
         model = LinearDML(
-            model_y=LassoCV(cv=3, max_iter=2000),
-            model_t=LogisticRegressionCV(cv=3, max_iter=2000),
+            model_y=Lasso(alpha=0.01, random_state=42),
+            model_t=LogisticRegression(random_state=42),
+            discrete_treatment=True,
             random_state=42,
         )
         model.fit(Y, T, X=X)
