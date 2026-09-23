@@ -27,27 +27,26 @@ TOP_DENSE = 20
 TOP_SPARSE = 20
 TOP_FUSED = 15
 
-# Dense model selection (try BGE-M3 first, fallback to MiniLM for CPU)
+# Dense model selection: defaults to CPU-friendly MiniLM; set
+# DIACAUSAL_DENSE_MODEL=BAAI/bge-m3 for higher-quality medical retrieval.
+import os as _os
+
 _DENSE_MODEL_NAME: str | None = None
 _EMBEDDING_FN: Any = None
 _BM25_INDEX: Any = None
 _CHUNK_STORE: dict[str, MedicalChunk] = {}
 _CHROMA_COLLECTION: Any = None
 
+# Default to lightweight model; BGE-M3 can be opted in via env var
+_DEFAULT_DENSE_MODEL = _os.environ.get("DIACAUSAL_DENSE_MODEL", "all-MiniLM-L6-v2")
+
 
 def _get_dense_model_name() -> str:
-    """Select the best available dense embedding model."""
+    """Select the dense embedding model (configurable via DIACAUSAL_DENSE_MODEL)."""
     global _DENSE_MODEL_NAME
     if _DENSE_MODEL_NAME is not None:
         return _DENSE_MODEL_NAME
-    try:
-        from sentence_transformers import SentenceTransformer
-
-        # Try BGE-M3 first - better for medical text
-        _model = SentenceTransformer("BAAI/bge-m3")
-        _DENSE_MODEL_NAME = "BAAI/bge-m3"
-    except Exception:
-        _DENSE_MODEL_NAME = "all-MiniLM-L6-v2"
+    _DENSE_MODEL_NAME = _DEFAULT_DENSE_MODEL
     return _DENSE_MODEL_NAME
 
 
